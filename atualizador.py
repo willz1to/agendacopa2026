@@ -28,13 +28,6 @@ traducao_paises = {
     "Bolivia": "Bolívia", "Qatar": "Catar", "Panama": "Panamá", "Jamaica": "Jamaica"
 }
 
-emojis_bandeiras = {
-    "Brasil": "🇧🇷", "Alemanha": "🇩🇪", "Espanha": "🇪🇸", "França": "🇫🇷", "Inglaterra": "🏴%󠁢%󠁥%󠁮%󠁧%󠁿",
-    "Argentina": "🇦🇷", "Portugal": "🇵🇹", "Países Baixos": "🇳🇱", "Bélgica": "🇧🇪", "Itália": "🇮🇹",
-    "Uruguai": "🇺🇾", "Colômbia": "🇨🇴", "México": "🇲🇽", "Estados Unidos": "🇺🇸", "Canadá": "🇨🇦",
-    "Marrocos": "🇲🇦", "Senegal": "🇸🇳", "Japão": "🇯🇵", "Coreia do Sul": "🇰🇷", "Austrália": "🇦🇺"
-}
-
 traducao_status = { "Scheduled": "Agendado", "In Play": "Em Andamento", "Finished": "Encerrado" }
 
 def tratar_id(valor):
@@ -57,13 +50,16 @@ def executar_atualizacao():
             if id_eq:
                 nome_en = equipa.get('name_en', '')
                 nome_pt = traducao_paises.get(nome_en, nome_en)
+                codigo_fifa = equipa.get('fifa_code', '')
+                
                 equipas_map[id_eq] = {
                     "nome": nome_pt,
-                    "bandeira": emojis_bandeiras.get(nome_pt, "")
+                    "codigo": codigo_fifa
                 }
+                
                 dados_equipa = {
                     "id": id_eq, "nome_original": nome_en, "nome_ptbr": nome_pt,
-                    "codigo_fifa": equipa.get('fifa_code', ''), "grupo": equipa.get('groups', ''),
+                    "codigo_fifa": codigo_fifa, "grupo": equipa.get('groups', ''),
                     "bandeira_url": equipa.get('flag', '')
                 }
                 supabase.table("selecoes").upsert(dados_equipa).execute()
@@ -91,7 +87,7 @@ def executar_atualizacao():
         supabase.table("status_sistema").upsert({"id": 1, "ultima_atualizacao": "now()"}).execute()
         print("Supabase atualizado!")
 
-        # GERAÇÃO DO CALENDÁRIO ESTÁTICO .ICS
+        # GERAÇÃO DO CALENDÁRIO ESTÁTICO .ICS (Agora usando Siglas FIFA em vez de Emojis)
         print("Gerando ficheiro de calendário .ics...")
         ics_linhas = [
             "BEGIN:VCALENDAR",
@@ -110,8 +106,11 @@ def executar_atualizacao():
             id_casa = tratar_id(jogo.get('home_team_id'))
             id_fora = tratar_id(jogo.get('away_team_id'))
             
-            casa = equipas_map.get(id_casa, {"nome": "A Definir", "bandeira": ""}) if id_casa else {"nome": "A Definir", "bandeira": ""}
-            fora = equipas_map.get(id_fora, {"nome": "A Definir", "bandeira": ""}) if id_fora else {"nome": "A Definir", "bandeira": ""}
+            casa = equipas_map.get(id_casa, {"nome": "A Definir", "codigo": ""}) if id_casa else {"nome": "A Definir", "codigo": ""}
+            fora = equipas_map.get(id_fora, {"nome": "A Definir", "codigo": ""}) if id_fora else {"nome": "A Definir", "codigo": ""}
+            
+            sigla_casa = f"[{casa['codigo']}] " if casa['codigo'] else ""
+            sigla_fora = f" [{fora['codigo']}]" if fora['codigo'] else ""
             
             status_original = jogo.get('status', 'Scheduled')
             status_pt = traducao_status.get(status_original, status_original)
@@ -119,9 +118,9 @@ def executar_atualizacao():
             g_fora = tratar_gols(jogo.get('away_score'))
 
             if status_pt in ["Em Andamento", "Encerrado"] and g_casa is not None and g_fora is not None:
-                titulo = f"{casa['bandeira']} {casa['nome']} {g_casa} x {g_fora} {fora['nome']} {fora['bandeira']} ({status_pt})"
+                titulo = f"{sigla_casa}{casa['nome']} {g_casa} x {g_fora} {fora['nome']}{sigla_fora} ({status_pt})"
             else:
-                titulo = f"{casa['bandeira']} {casa['nome']} x {fora['nome']} {fora['bandeira']}"
+                titulo = f"{sigla_casa}{casa['nome']} x {fora['nome']}{sigla_fora}"
 
             data_raw = jogo.get('date', jogo.get('local_date'))
             try:
@@ -151,3 +150,4 @@ def executar_atualizacao():
     except Exception as e: print(f"Erro durante a atualização: {e}")
 
 if __name__ == "__main__": executar_atualizacao()
+    
