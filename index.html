@@ -1,0 +1,522 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Painel Copa do Mundo 2026</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: { extend: { colors: { copaVerde: '#009B3A', copaAmarelo: '#FEDF00' } } }
+        }
+    </script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
+        .bandeira-img { width: 24px; height: 16px; object-fit: cover; border-radius: 2px; }
+        @media (max-width: 640px) { .hide-mobile { display: none; } }
+    </style>
+</head>
+<body class="bg-gray-50 text-gray-900 dark:bg-slate-900 dark:text-gray-100 min-h-screen font-sans pb-32 md:pb-0">
+
+    <header class="bg-white dark:bg-slate-800 border-b border-gray-200 dark:border-slate-700 sticky top-0 z-50 transition-colors">
+        <div class="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
+            <div class="flex items-center space-x-3">
+                <span class="text-2xl">🏆</span>
+                <div>
+                    <h1 class="font-bold text-lg leading-tight">Copa 2026</h1>
+                    <div class="flex items-center space-x-1.5 mt-0.5">
+                        <span id="status-ponto" class="h-2.5 w-2.5 rounded-full bg-amber-500 animate-pulse"></span>
+                        <span id="status-texto" class="text-xs text-gray-500 dark:text-gray-400">Conectando...</span>
+                    </div>
+                </div>
+            </div>
+            <div class="flex items-center space-x-2">
+                <button id="btn-atualizar" class="p-2 rounded-lg bg-gray-100 dark:bg-slate-700 hover:bg-gray-200 dark:hover:bg-slate-600 transition">🔄</button>
+                <button id="btn-tema" class="p-2 rounded-lg bg-gray-100 dark:bg-slate-700 hover:bg-gray-200 dark:hover:bg-slate-600 transition">🌙</button>
+            </div>
+        </div>
+    </header>
+
+    <nav class="hidden md:flex bg-white dark:bg-slate-800 border-b border-gray-200 dark:border-slate-700 shadow-sm">
+        <div class="max-w-7xl mx-auto px-4 flex space-x-8">
+            <button onclick="mudarAba('jogos')" class="tab-button py-4 px-1 border-b-2 font-medium text-sm border-copaVerde text-copaVerde active-tab">Jogos</button>
+            <button onclick="mudarAba('grupos')" class="tab-button py-4 px-1 border-b-2 border-transparent font-medium text-sm text-gray-500 dark:text-gray-400 hover:text-copaVerde">Grupos</button>
+            <button onclick="mudarAba('selecoes')" class="tab-button py-4 px-1 border-b-2 border-transparent font-medium text-sm text-gray-500 dark:text-gray-400 hover:text-copaVerde">Seleções</button>
+            <button onclick="mudarAba('simulador')" class="tab-button py-4 px-1 border-b-2 border-transparent font-medium text-sm text-gray-500 dark:text-gray-400 hover:text-copaVerde">Simulador</button>
+        </div>
+    </nav>
+
+    <main class="max-w-7xl mx-auto px-4 py-6">
+        
+        <section id="aba-jogos" class="tab-content active">
+            <div class="flex items-center justify-between mb-4">
+                <h2 class="text-xl font-bold">Calendário de Partidas</h2>
+                <button onclick="window.open('/.netlify/functions/calendario')" class="text-sm bg-copaVerde hover:bg-emerald-700 text-white font-medium py-1.5 px-3 rounded-lg shadow transition">🗓️ Seguir Agenda</button>
+            </div>
+            <div id="lista-jogos" class="space-y-3"></div>
+        </section>
+
+        <section id="aba-grupos" class="tab-content">
+            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6">
+                <h2 class="text-xl font-bold">Classificação dos Grupos</h2>
+                <div class="flex gap-2 w-full sm:w-auto">
+                    <select id="filtro-grupo" onchange="renderizarGrupos()" class="w-1/3 sm:w-auto bg-white dark:bg-slate-800 border border-gray-300 dark:border-slate-600 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:border-copaVerde">
+                        <option value="todos">Todos</option>
+                    </select>
+                    <div class="relative w-2/3 sm:w-auto flex items-center">
+                        <input type="text" id="busca-pais" oninput="filtrarPorPais(this.value)" list="lista-paises-sugestao" placeholder="Buscar país..." class="w-full bg-white dark:bg-slate-800 border border-gray-300 dark:border-slate-600 rounded-lg pl-3 pr-8 py-1.5 text-sm focus:outline-none focus:border-copaVerde">
+                        <button onclick="limparFiltros()" class="absolute right-2 text-gray-400 hover:text-red-500 text-lg leading-none p-1">&times;</button>
+                        <datalist id="lista-paises-sugestao"></datalist>
+                    </div>
+                </div>
+            </div>
+            <div id="lista-grupos" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6"></div>
+        </section>
+
+        <section id="aba-selecoes" class="tab-content">
+            <h2 class="text-xl font-bold mb-4">Raio-X da Seleção</h2>
+            <div class="max-w-3xl mx-auto space-y-6">
+                <div class="bg-white dark:bg-slate-800 p-4 rounded-xl shadow-sm border border-gray-100 dark:border-slate-700">
+                    <select id="busca-selecao-perfil" onchange="renderizarPerfilSelecao(this.value)" class="w-full bg-gray-50 dark:bg-slate-700 border border-gray-300 dark:border-slate-600 rounded-lg p-2.5 focus:outline-none focus:border-copaVerde"></select>
+                </div>
+                <div id="perfil-resultado" class="bg-white dark:bg-slate-800 p-6 rounded-xl shadow-sm border border-gray-100 dark:border-slate-700 text-center text-gray-500">
+                    Selecione um país para visualizar o detalhamento completo e cartões.
+                </div>
+            </div>
+        </section>
+
+        <section id="aba-simulador" class="tab-content">
+            <div class="flex items-center justify-between mb-4">
+                <h2 class="text-xl font-bold">Simulador de Resultados</h2>
+                <button onclick="reiniciarSimulacao()" class="text-sm bg-gray-200 dark:bg-slate-700 hover:bg-gray-300 dark:hover:bg-slate-600 font-medium py-1.5 px-3 rounded-lg transition">🔄 Reiniciar</button>
+            </div>
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <div id="lista-simulador-jogos" class="lg:col-span-2 space-y-3 max-h-[70vh] overflow-y-auto pr-2"></div>
+                <div id="lista-simulador-grupos" class="space-y-6"></div>
+            </div>
+        </section>
+
+    </main>
+
+    <nav class="md:hidden bg-white dark:bg-slate-800 border-t border-gray-200 dark:border-slate-700 fixed bottom-0 left-0 right-0 z-50 flex justify-around py-2 shadow-[0_-2px_10px_rgba(0,0,0,0.05)]">
+        <button onclick="mudarAba('jogos')" class="nav-mobile-btn flex flex-col items-center text-copaVerde"><span class="text-xl">⚽</span><span class="text-[10px] font-medium mt-0.5">Jogos</span></button>
+        <button onclick="mudarAba('grupos')" class="nav-mobile-btn flex flex-col items-center text-gray-500 dark:text-gray-400"><span class="text-xl">📊</span><span class="text-[10px] font-medium mt-0.5">Grupos</span></button>
+        <button onclick="mudarAba('selecoes')" class="nav-mobile-btn flex flex-col items-center text-gray-500 dark:text-gray-400"><span class="text-xl">🔍</span><span class="text-[10px] font-medium mt-0.5">Seleções</span></button>
+        <button onclick="mudarAba('simulador')" class="nav-mobile-btn flex flex-col items-center text-gray-500 dark:text-gray-400"><span class="text-xl">🔮</span><span class="text-[10px] font-medium mt-0.5">Simulador</span></button>
+    </nav>
+
+    <script>
+        const SUPABASE_URL = "https://mssdfcjxttqaborisnmk.supabase.co";
+        const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1zc2RmY2p4dHRxYWJvcmlzbm1rIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA3ODYzNTgsImV4cCI6MjA5NjM2MjM1OH0.CO_Ul-LySIlGd5Bc7LSkV1O0C_usshVmS6YrQbly7gs";
+        const _supabase = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+        let dadosGlobais = { selecoes: [], jogos: [] };
+        let dadosSimulados = { jogos: [] };
+
+        const correcoesFrontEnd = {
+            "Czech Republic": "Rep. Tcheca", "Bosnia and Herzegovina": "Bósnia",
+            "Ivory Coast": "C. do Marfim", "Saudi Arabia": "Arábia Saudita"
+        };
+
+        function mudarAba(nomeAba) {
+            document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+            document.getElementById(`aba-${nomeAba}`).classList.add('active');
+            document.querySelectorAll('.tab-button').forEach(btn => {
+                if(btn.textContent.toLowerCase() === nomeAba || (nomeAba==='selecoes' && btn.textContent==='Seleções')) {
+                    btn.classList.add('border-copaVerde', 'text-copaVerde'); btn.classList.remove('border-transparent', 'text-gray-500', 'dark:text-gray-400');
+                } else {
+                    btn.classList.remove('border-copaVerde', 'text-copaVerde'); btn.classList.add('border-transparent', 'text-gray-500', 'dark:text-gray-400');
+                }
+            });
+            document.querySelectorAll('.nav-mobile-btn').forEach(btn => {
+                const label = btn.querySelector('span:last-child').textContent.toLowerCase();
+                if(label === nomeAba || (nomeAba==='selecoes' && label==='seleções')) {
+                    btn.classList.add('text-copaVerde'); btn.classList.remove('text-gray-500', 'dark:text-gray-400');
+                } else {
+                    btn.classList.remove('text-copaVerde'); btn.classList.add('text-gray-500', 'dark:text-gray-400');
+                }
+            });
+            if (nomeAba === 'simulador' && dadosSimulados.jogos.length === 0) reiniciarSimulacao();
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+
+        const btnTema = document.getElementById('btn-tema');
+        if (localStorage.getItem('theme') === 'dark' || (!('theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+            document.documentElement.classList.add('dark'); btnTema.textContent = '☀️';
+        } else {
+            document.documentElement.classList.remove('dark'); btnTema.textContent = '🌙';
+        }
+        btnTema.addEventListener('click', () => {
+            document.documentElement.classList.toggle('dark');
+            const isDark = document.documentElement.classList.contains('dark');
+            localStorage.setItem('theme', isDark ? 'dark' : 'light');
+            btnTema.textContent = isDark ? '☀️' : '🌙';
+        });
+
+        function formatarData(dataStr) {
+            try {
+                if(!dataStr) return 'A definir';
+                return new Date(String(dataStr).trim().replace(' ', 'T')).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute:'2-digit' });
+            } catch { return 'A definir'; }
+        }
+
+        function formatarHorario(dataStr) {
+            try {
+                if(!dataStr) return '--:--';
+                return new Date(String(dataStr).trim().replace(' ', 'T')).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+            } catch { return '--:--'; }
+        }
+
+        function getEquipa(id, lista = dadosGlobais.selecoes) {
+            let equipa = lista.find(s => s.id === id);
+            if (equipa) {
+                if(correcoesFrontEnd[equipa.nome_ptbr]) equipa.nome_ptbr = correcoesFrontEnd[equipa.nome_ptbr];
+                return equipa;
+            }
+            return { nome_ptbr: 'A Definir', bandeira_url: '' };
+        }
+
+        function renderizarJogos() {
+            const lista = document.getElementById('lista-jogos');
+            lista.innerHTML = dadosGlobais.jogos.length ? '' : '<p class="text-gray-500 text-center py-8">Nenhum jogo encontrado.</p>';
+            
+            dadosGlobais.jogos.forEach(jogo => {
+                const casa = getEquipa(jogo.time_casa_id);
+                const fora = getEquipa(jogo.time_visitante_id);
+                const placar = jogo.status === 'Encerrado' || jogo.status === 'Em Andamento' 
+                    ? `<span class="font-bold text-lg">${jogo.gols_casa} - ${jogo.gols_visitante}</span>`
+                    : `<span class="text-sm text-gray-400">${formatarHorario(jogo.data_hora)}</span>`;
+
+                lista.innerHTML += `
+                    <div class="bg-white dark:bg-slate-800 p-4 rounded-xl shadow-sm border border-gray-100 dark:border-slate-700 flex flex-col items-center">
+                        <div class="text-xs text-gray-500 mb-2 text-center">${formatarData(jogo.data_hora)} • ${jogo.fase} • <span class="${jogo.status==='Em Andamento' ? 'text-green-500 animate-pulse font-bold' : ''}">${jogo.status}</span></div>
+                        <div class="flex items-center justify-center w-full space-x-2 sm:space-x-4">
+                            <div class="flex flex-col items-center w-5/12 text-center">
+                                ${casa.bandeira_url ? `<img src="${casa.bandeira_url}" class="bandeira-img mb-1">` : `<div class="w-6 h-4 bg-gray-200 dark:bg-slate-600 rounded mb-1 border border-gray-300 dark:border-slate-500"></div>`}
+                                <span class="text-xs sm:text-sm font-bold sm:font-medium line-clamp-2">${casa.nome_ptbr}</span>
+                            </div>
+                            <div class="w-2/12 flex justify-center items-center bg-gray-50 dark:bg-slate-700 py-1 rounded-lg">${placar}</div>
+                            <div class="flex flex-col items-center w-5/12 text-center">
+                                ${fora.bandeira_url ? `<img src="${fora.bandeira_url}" class="bandeira-img mb-1">` : `<div class="w-6 h-4 bg-gray-200 dark:bg-slate-600 rounded mb-1 border border-gray-300 dark:border-slate-500"></div>`}
+                                <span class="text-xs sm:text-sm font-bold sm:font-medium line-clamp-2">${fora.nome_ptbr}</span>
+                            </div>
+                        </div>
+                    </div>`;
+            });
+        }
+
+        function calcularClassificacao(listaJogos = dadosGlobais.jogos) {
+            let classif = {};
+            dadosGlobais.selecoes.forEach(s => { 
+                let nome = correcoesFrontEnd[s.nome_ptbr] || s.nome_ptbr;
+                if(s.grupo) classif[s.id] = { ...s, nome_ptbr: nome, pts: 0, j: 0, v: 0, e: 0, d: 0, gp: 0, gc: 0, sg: 0, ca: 0, cv: 0 }; 
+            });
+
+            listaJogos.forEach(jogo => {
+                if ((jogo.status === 'Encerrado' || listaJogos === dadosSimulados.jogos) && jogo.gols_casa !== null && jogo.gols_visitante !== null) {
+                    let casa = classif[jogo.time_casa_id];
+                    let fora = classif[jogo.time_visitante_id];
+                    if(casa && fora) {
+                        casa.j++; fora.j++;
+                        casa.gp += jogo.gols_casa; casa.gc += jogo.gols_visitante;
+                        fora.gp += jogo.gols_visitante; fora.gc += jogo.gols_casa;
+                        casa.sg = casa.gp - casa.gc; fora.sg = fora.gp - fora.gc;
+                        if (jogo.gols_casa > jogo.gols_visitante) { casa.pts += 3; casa.v++; fora.d++; }
+                        else if (jogo.gols_casa < jogo.gols_visitante) { fora.pts += 3; fora.v++; casa.d++; }
+                        else { casa.pts += 1; fora.pts += 1; casa.e++; fora.e++; }
+                    }
+                }
+            });
+
+            let grupos = {};
+            Object.values(classif).forEach(t => {
+                if(!grupos[t.grupo]) grupos[t.grupo] = [];
+                grupos[t.grupo].push(t);
+            });
+            for(let g in grupos) grupos[g].sort((a,b) => b.pts - a.pts || b.sg - a.sg || b.gp - a.gp);
+            return grupos;
+        }
+
+        function renderizarGrupos() {
+            const filtro = document.getElementById('filtro-grupo').value;
+            const lista = document.getElementById('lista-grupos');
+            lista.innerHTML = '';
+            const classificacao = calcularClassificacao();
+
+            Object.keys(classificacao).sort().forEach(g => {
+                if (filtro !== 'todos' && filtro !== g) return;
+                let linhas = classificacao[g].map((t, i) => `
+                    <tr class="border-b dark:border-slate-700 last:border-0 ${i < 2 ? 'bg-green-50/50 dark:bg-green-900/10' : ''}">
+                        <td class="py-2 text-center text-xs font-bold">${i + 1}</td>
+                        <td class="py-2 flex items-center space-x-2"><img src="${t.bandeira_url}" class="bandeira-img shadow-sm"><span class="text-sm font-medium truncate">${t.nome_ptbr}</span></td>
+                        <td class="py-2 text-center font-bold text-copaVerde">${t.pts}</td>
+                        <td class="py-2 text-center text-xs">${t.j}</td>
+                        <td class="py-2 text-center text-xs text-gray-500 hide-mobile">${t.v}</td>
+                        <td class="py-2 text-center text-xs text-gray-500 hide-mobile">${t.e}</td>
+                        <td class="py-2 text-center text-xs text-gray-500 hide-mobile">${t.d}</td>
+                        <td class="py-2 text-center text-xs text-gray-500">${t.gp}</td>
+                        <td class="py-2 text-center text-xs text-gray-500 hide-mobile">${t.gc}</td>
+                        <td class="py-2 text-center text-xs font-medium">${t.sg}</td>
+                        <td class="py-2 text-center text-xs text-yellow-500 hide-mobile">${t.ca}</td>
+                        <td class="py-2 text-center text-xs text-red-500 hide-mobile">${t.cv}</td>
+                    </tr>
+                `).join('');
+
+                lista.innerHTML += `
+                    <div class="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-gray-100 dark:border-slate-700 overflow-hidden">
+                        <div class="bg-gray-50 dark:bg-slate-700 px-4 py-2 border-b dark:border-slate-600"><h3 class="font-bold">Grupo ${g}</h3></div>
+                        <div class="p-3 sm:p-4 overflow-x-auto">
+                            <table class="w-full min-w-[300px]">
+                                <thead>
+                                    <tr class="text-[10px] text-gray-400 border-b dark:border-slate-700">
+                                        <th class="pb-2 w-6">#</th>
+                                        <th class="pb-2 text-left">Seleção</th>
+                                        <th class="pb-2 w-6" title="Pontos">P</th>
+                                        <th class="pb-2 w-6" title="Jogos">J</th>
+                                        <th class="pb-2 w-6 hide-mobile" title="Vitórias">V</th>
+                                        <th class="pb-2 w-6 hide-mobile" title="Empates">E</th>
+                                        <th class="pb-2 w-6 hide-mobile" title="Derrotas">D</th>
+                                        <th class="pb-2 w-6" title="Gols Pró">GP</th>
+                                        <th class="pb-2 w-6 hide-mobile" title="Gols Contra">GC</th>
+                                        <th class="pb-2 w-6" title="Saldo de Gols">SG</th>
+                                        <th class="pb-2 w-6 hide-mobile" title="Cartões Amarelos">CA</th>
+                                        <th class="pb-2 w-6 hide-mobile" title="Cartões Vermelhos">CV</th>
+                                    </tr>
+                                </thead>
+                                <tbody>${linhas}</tbody>
+                            </table>
+                        </div>
+                    </div>`;
+            });
+        }
+
+        function limparFiltros() {
+            document.getElementById('busca-pais').value = '';
+            document.getElementById('filtro-grupo').value = 'todos';
+            renderizarGrupos();
+        }
+
+        function filtrarPorPais(termo) {
+            const limpo = termo.trim().toLowerCase();
+            if (limpo === '') { limparFiltros(); return; }
+            
+            const selecao = dadosGlobais.selecoes.find(s => {
+                let nome = correcoesFrontEnd[s.nome_ptbr] || s.nome_ptbr;
+                return nome.toLowerCase().includes(limpo);
+            });
+            if(selecao && selecao.grupo) {
+                document.getElementById('filtro-grupo').value = selecao.grupo;
+                renderizarGrupos();
+            }
+        }
+
+        function renderizarPerfilSelecao(id) {
+            const container = document.getElementById('perfil-resultado');
+            if(!id) { container.innerHTML = 'Selecione um país acima para analisar os dados históricos e tabela.'; return; }
+            
+            const selecao = getEquipa(parseInt(id));
+            const classif = calcularClassificacao();
+            let posText = "N/A", estatisticas = { pts: 0, j: 0, v: 0, e: 0, d: 0, gp: 0, gc: 0, sg: 0, ca: 0, cv: 0 };
+            
+            if(selecao.grupo && classif[selecao.grupo]) {
+                const idx = classif[selecao.grupo].findIndex(t => t.id === selecao.id);
+                if(idx !== -1) {
+                    posText = `${idx + 1}º Lugar`;
+                    estatisticas = classif[selecao.grupo][idx];
+                }
+            }
+
+            const jogosSelecao = dadosGlobais.jogos.filter(j => j.time_casa_id === selecao.id || j.time_visitante_id === selecao.id);
+            let jogosHTML = jogosSelecao.map(j => {
+                const casa = getEquipa(j.time_casa_id);
+                const fora = getEquipa(j.time_visitante_id);
+                const placar = j.status !== 'Agendado' ? `${j.gols_casa} x ${j.gols_visitante}` : 'vs';
+                return `<div class="text-xs sm:text-sm bg-gray-50 dark:bg-slate-700/50 p-2.5 rounded-lg flex justify-between items-center">
+                    <span class="w-2/5 text-right font-medium truncate">${casa.nome_ptbr}</span>
+                    <span class="w-1/5 text-center font-bold bg-gray-200 dark:bg-slate-600 px-2 py-0.5 rounded text-copaVerde mx-1">${placar}</span>
+                    <span class="w-2/5 text-left font-medium truncate">${fora.nome_ptbr}</span>
+                </div>`;
+            }).join('');
+
+            container.innerHTML = `
+                <div class="flex flex-col items-center space-y-3 mb-8">
+                    <img src="${selecao.bandeira_url}" class="w-20 h-14 object-cover rounded shadow-md border dark:border-slate-700">
+                    <h3 class="text-2xl font-bold">${selecao.nome_ptbr}</h3>
+                    <div class="inline-flex gap-4 text-sm bg-gray-100 dark:bg-slate-700 px-4 py-2 rounded-xl">
+                        <div>Grupo <span class="font-bold text-copaVerde">${selecao.grupo || 'N/A'}</span></div>
+                        <div>Posição: <span class="font-bold text-copaVerde">${posText}</span></div>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-3 sm:grid-cols-5 gap-3 mb-8 text-center">
+                    <div class="bg-gray-50 dark:bg-slate-700 p-2 rounded-lg border dark:border-slate-600">
+                        <div class="text-[9px] sm:text-[10px] text-gray-500 uppercase font-bold">Pontos</div>
+                        <div class="text-lg font-bold text-copaVerde">${estatisticas.pts}</div>
+                    </div>
+                    <div class="bg-gray-50 dark:bg-slate-700 p-2 rounded-lg border dark:border-slate-600">
+                        <div class="text-[9px] sm:text-[10px] text-gray-500 uppercase font-bold">Jogos</div>
+                        <div class="text-lg font-bold">${estatisticas.j}</div>
+                    </div>
+                    <div class="bg-gray-50 dark:bg-slate-700 p-2 rounded-lg border dark:border-slate-600">
+                        <div class="text-[9px] sm:text-[10px] text-gray-500 uppercase font-bold">Vitórias</div>
+                        <div class="text-lg font-bold text-blue-500">${estatisticas.v}</div>
+                    </div>
+                    <div class="bg-gray-50 dark:bg-slate-700 p-2 rounded-lg border dark:border-slate-600">
+                        <div class="text-[9px] sm:text-[10px] text-gray-500 uppercase font-bold">Empates</div>
+                        <div class="text-lg font-bold text-gray-400">${estatisticas.e}</div>
+                    </div>
+                    <div class="bg-gray-50 dark:bg-slate-700 p-2 rounded-lg border dark:border-slate-600">
+                        <div class="text-[9px] sm:text-[10px] text-gray-500 uppercase font-bold">Derrotas</div>
+                        <div class="text-lg font-bold text-red-400">${estatisticas.d}</div>
+                    </div>
+                    <div class="bg-gray-50 dark:bg-slate-700 p-2 rounded-lg border dark:border-slate-600">
+                        <div class="text-[9px] sm:text-[10px] text-gray-500 uppercase font-bold">Gols Pró</div>
+                        <div class="text-lg font-bold text-green-500">${estatisticas.gp}</div>
+                    </div>
+                    <div class="bg-gray-50 dark:bg-slate-700 p-2 rounded-lg border dark:border-slate-600">
+                        <div class="text-[9px] sm:text-[10px] text-gray-500 uppercase font-bold">Gols Contra</div>
+                        <div class="text-lg font-bold text-red-500">${estatisticas.gc}</div>
+                    </div>
+                    <div class="bg-gray-50 dark:bg-slate-700 p-2 rounded-lg border dark:border-slate-600">
+                        <div class="text-[9px] sm:text-[10px] text-gray-500 uppercase font-bold">Saldo</div>
+                        <div class="text-lg font-bold">${estatisticas.sg}</div>
+                    </div>
+                    <div class="bg-yellow-50 dark:bg-yellow-900/20 p-2 rounded-lg border border-yellow-200 dark:border-yellow-700/50">
+                        <div class="text-[9px] sm:text-[10px] text-yellow-600 dark:text-yellow-500 uppercase font-bold">C. Amarelo</div>
+                        <div class="text-lg font-bold text-yellow-600 dark:text-yellow-500">${estatisticas.ca}</div>
+                    </div>
+                    <div class="bg-red-50 dark:bg-red-900/20 p-2 rounded-lg border border-red-200 dark:border-red-700/50">
+                        <div class="text-[9px] sm:text-[10px] text-red-600 dark:text-red-400 uppercase font-bold">C. Vermelho</div>
+                        <div class="text-lg font-bold text-red-600 dark:text-red-400">${estatisticas.cv}</div>
+                    </div>
+                </div>
+
+                <div class="space-y-2 text-left">
+                    <h4 class="text-sm font-bold text-gray-400 mb-3 uppercase tracking-wider">Histórico de Partidas</h4>
+                    <div class="space-y-2">
+                        ${jogosHTML || '<p class="text-xs text-gray-500 text-center py-4">Nenhuma partida registrada.</p>'}
+                    </div>
+                </div>`;
+        }
+
+        function reiniciarSimulacao() {
+            dadosSimulados.jogos = JSON.parse(JSON.stringify(dadosGlobais.jogos));
+            const container = document.getElementById('lista-simulador-jogos');
+            container.innerHTML = '';
+            const jogosGrupos = dadosSimulados.jogos.filter(j => String(j.fase).toLowerCase().includes('grupo'));
+            
+            jogosGrupos.forEach(jogo => {
+                const casa = getEquipa(jogo.time_casa_id);
+                const fora = getEquipa(jogo.time_visitante_id);
+                
+                container.innerHTML += `
+                    <div class="bg-white dark:bg-slate-800 p-3 rounded-xl border border-gray-100 dark:border-slate-700 flex items-center justify-between shadow-sm">
+                        <div class="w-2/5 flex items-center space-x-2 justify-end text-right">
+                            <span class="text-xs font-medium truncate hidden sm:inline">${casa.nome_ptbr}</span>
+                            <img src="${casa.bandeira_url}" class="bandeira-img">
+                        </div>
+                        <div class="w-1/5 flex items-center justify-center space-x-1 mx-2">
+                            <input type="number" min="0" value="${jogo.gols_casa !== null ? jogo.gols_casa : ''}" oninput="alterarPlacarSimulado(${jogo.id}, 'gols_casa', this.value)" class="w-10 h-8 bg-gray-50 dark:bg-slate-700 border dark:border-slate-600 rounded-lg text-center font-bold text-sm focus:outline-none focus:border-copaVerde">
+                            <span class="text-xs text-gray-400">x</span>
+                            <input type="number" min="0" value="${jogo.gols_visitante !== null ? jogo.gols_visitante : ''}" oninput="alterarPlacarSimulado(${jogo.id}, 'gols_visitante', this.value)" class="w-10 h-8 bg-gray-50 dark:bg-slate-700 border dark:border-slate-600 rounded-lg text-center font-bold text-sm focus:outline-none focus:border-copaVerde">
+                        </div>
+                        <div class="w-2/5 flex items-center space-x-2 text-left">
+                            <img src="${fora.bandeira_url}" class="bandeira-img">
+                            <span class="text-xs font-medium truncate hidden sm:inline">${fora.nome_ptbr}</span>
+                        </div>
+                    </div>`;
+            });
+            recalcularSimunacaoTabela();
+        }
+
+        function alterarPlacarSimulado(jogoId, campo, valor) {
+            const jogo = dadosSimulados.jogos.find(j => j.id === jogoId);
+            if(jogo) {
+                jogo[campo] = valor.trim() === '' ? null : parseInt(valor);
+                recalcularSimunacaoTabela();
+            }
+        }
+
+        function recalcularSimunacaoTabela() {
+            const container = document.getElementById('lista-simulador-grupos');
+            container.innerHTML = '';
+            const classif = calcularClassificacao(dadosSimulados.jogos);
+
+            Object.keys(classif).sort().forEach(g => {
+                let linhas = classif[g].map((t, i) => `
+                    <tr class="text-xs border-b dark:border-slate-700 last:border-0 ${i < 2 ? 'bg-green-50/50 dark:bg-green-900/10' : ''}">
+                        <td class="py-1.5 font-bold text-center">${i+1}</td>
+                        <td class="py-1.5 truncate max-w-[80px]">${t.nome_ptbr}</td>
+                        <td class="py-1.5 text-center font-bold text-copaVerde">${t.pts}</td>
+                        <td class="py-1.5 text-center text-gray-500">${t.gp}</td>
+                        <td class="py-1.5 text-center text-gray-500">${t.gc}</td>
+                        <td class="py-1.5 text-center font-medium">${t.sg}</td>
+                    </tr>`).join('');
+
+                container.innerHTML += `
+                    <div class="bg-white dark:bg-slate-800 p-3 rounded-xl border border-gray-100 dark:border-slate-700 shadow-sm">
+                        <h4 class="font-bold text-xs mb-1.5 border-b pb-1 dark:border-slate-600">Grupo ${g}</h4>
+                        <table class="w-full text-left">
+                            <thead><tr class="text-[10px] text-gray-400"><th class="text-center w-6">#</th><th>Sel.</th><th class="text-center w-6">P</th><th class="text-center w-6" title="Gols Pró">GP</th><th class="text-center w-6" title="Gols Contra">GC</th><th class="text-center w-6">SG</th></tr></thead>
+                            <tbody>${linhas}</tbody>
+                        </table>
+                    </div>`;
+            });
+        }
+
+        async function carregarDadosDoBanco() {
+            try {
+                document.getElementById('status-ponto').className = "h-2.5 w-2.5 rounded-full bg-amber-500 animate-pulse";
+                document.getElementById('status-texto').textContent = "Atualizando...";
+
+                try {
+                    const { data: statusData } = await _supabase.from('status_sistema').select('*').single();
+                    if(statusData) {
+                        const dataFormatada = formatarHorario(statusData.ultima_atualizacao);
+                        document.getElementById('status-ponto').className = "h-2.5 w-2.5 rounded-full bg-copaVerde shadow-[0_0_8px_#009B3A]";
+                        document.getElementById('status-texto').textContent = `Sincronizado às ${dataFormatada}`;
+                    }
+                } catch (e) {
+                    document.getElementById('status-ponto').className = "h-2.5 w-2.5 rounded-full bg-copaVerde shadow-[0_0_8px_#009B3A]";
+                    document.getElementById('status-texto').textContent = "Conectado";
+                }
+
+                const { data: selecoes } = await _supabase.from('selecoes').select('*').order('nome_ptbr', { ascending: true });
+                dadosGlobais.selecoes = selecoes || [];
+                
+                const { data: jogos } = await _supabase.from('jogos').select('*').order('data_hora', { ascending: true });
+                dadosGlobais.jogos = jogos || [];
+
+                const selectGrupo = document.getElementById('filtro-grupo');
+                selectGrupo.innerHTML = '<option value="todos">Todos</option>';
+                const gruposUnicos = [...new Set(dadosGlobais.selecoes.map(s => s.grupo).filter(g => g))].sort();
+                gruposUnicos.forEach(g => { selectGrupo.innerHTML += `<option value="${g}">Grupo ${g}</option>`; });
+
+                const datalist = document.getElementById('lista-paises-sugestao');
+                datalist.innerHTML = '';
+                dadosGlobais.selecoes.forEach(s => { if(s.grupo) datalist.innerHTML += `<option value="${correcoesFrontEnd[s.nome_ptbr] || s.nome_ptbr}">`; });
+
+                const selectSelecao = document.getElementById('busca-selecao-perfil');
+                selectSelecao.innerHTML = '<option value="">Selecione um país...</option>';
+                const selecoesOrdenadas = [...dadosGlobais.selecoes].map(s => ({...s, nomeExibicao: correcoesFrontEnd[s.nome_ptbr] || s.nome_ptbr })).sort((a,b) => a.nomeExibicao.localeCompare(b.nomeExibicao));
+                selecoesOrdenadas.forEach(s => { selectSelecao.innerHTML += `<option value="${s.id}">${s.nomeExibicao}</option>`; });
+
+                renderizarJogos();
+                renderizarGrupos();
+                if(document.getElementById('aba-simulador').classList.contains('active')) reiniciarSimulacao();
+
+            } catch (error) {
+                console.error("Erro geral de renderização:", error);
+                document.getElementById('status-ponto').className = "h-2.5 w-2.5 rounded-full bg-red-500";
+                document.getElementById('status-texto').textContent = "Erro de Carregamento";
+            }
+        }
+
+        document.getElementById('btn-atualizar').addEventListener('click', carregarDadosDoBanco);
+        window.addEventListener('DOMContentLoaded', carregarDadosDoBanco);
+    </script>
+</body>
+</html>
