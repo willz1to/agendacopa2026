@@ -2,8 +2,12 @@ name: Atualizador da Copa
 
 on:
   schedule:
-    - cron: '*/10 * * * *' # Roda automaticamente a cada 10 minutos
-  workflow_dispatch: # Cria um botão para você rodar manualmente quando quiser
+    - cron: '*/10 * * * *'
+  workflow_dispatch:
+
+# PERMISSÃO CRUCIAL: Permite ao robô fazer push do calendário para o repositório
+permissions:
+  contents: write
 
 jobs:
   atualizar-banco:
@@ -25,3 +29,12 @@ jobs:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
         run: python atualizador.py
+
+      - name: Guardar o Calendário no Repositório
+        run: |
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "github-actions[bot]"
+          git add calendario.ics
+          git diff-index --quiet HEAD || git commit -m "🤖 Atualização automática do calendário [.ics]"
+          g
+          it push
