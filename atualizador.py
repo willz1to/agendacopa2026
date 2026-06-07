@@ -151,4 +151,3 @@ def executar_atualizacao():
     except Exception as e: print(f"Erro durante a atualização: {e}")
 
 if __name__ == "__main__": executar_atualizacao()
-    
