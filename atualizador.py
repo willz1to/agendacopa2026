@@ -11,17 +11,31 @@ supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 URL_EQUIPAS = "https://raw.githubusercontent.com/rezarahiminia/worldcup2026/main/football.teams.json"
 URL_JOGOS = "https://raw.githubusercontent.com/rezarahiminia/worldcup2026/main/football.matches.json"
 
+# DICIONÁRIO EXPANDIDO: Mapeia todas as possíveis seleções em português
 traducao_paises = {
     "Brazil": "Brasil", "Germany": "Alemanha", "Spain": "Espanha",
-    "France": "França", "England": "Inglaterra", "Argentina": "Argentina"
-    # Você pode ir adicionando os outros depois aqui!
+    "France": "França", "England": "Inglaterra", "Argentina": "Argentina",
+    "Portugal": "Portugal", "Netherlands": "Países Baixos", "Belgium": "Bélgica",
+    "Croatia": "Croácia", "Italy": "Itália", "Uruguay": "Uruguai",
+    "Colombia": "Colômbia", "Mexico": "México", "United States": "Estados Unidos",
+    "Canada": "Canadá", "Morocco": "Marrocos", "Senegal": "Senegal",
+    "Japan": "Japão", "South Korea": "Coreia do Sul", "Australia": "Austrália",
+    "Iran": "Irã", "Saudi Arabia": "Arábia Saudita", "Ecuador": "Equador",
+    "Switzerland": "Suíça", "Denmark": "Dinamarca", "Serbia": "Sérvia",
+    "Poland": "Polônia", "Tunisia": "Tunísia", "Cameroon": "Camarões",
+    "Ghana": "Gana", "Costa Rica": "Costa Rica", "Ukraine": "Ucrânia",
+    "Peru": "Peru", "Chile": "Chile", "Sweden": "Suécia", "Norway": "Noruega",
+    "Austria": "Áustria", "Turkey": "Turquia", "Egypt": "Egito",
+    "Algeria": "Argélia", "Nigeria": "Nigéria", "Ivory Coast": "Costa do Marfim",
+    "South Africa": "África do Sul", "New Zealand": "Nova Zelândia",
+    "Venezuela": "Venezuela", "Paraguay": "Paraguai", "Bolivia": "Bolívia",
+    "Qatar": "Catar", "Ecuador": "Equador", "Panama": "Panamá", "Jamaica": "Jamaica"
 }
 
 traducao_status = {
     "Scheduled": "Agendado", "In Play": "Em Andamento", "Finished": "Encerrado"
 }
 
-# NOVA LÓGICA: Se o ID do time for 0 (jogo futuro), transforma em None para não quebrar o banco
 def tratar_id(valor):
     try:
         num = int(valor)
@@ -29,7 +43,6 @@ def tratar_id(valor):
     except:
         return None
 
-# NOVA LÓGICA: Gols podem ser 0, então ele guarda o 0 corretamente
 def tratar_gols(valor):
     try:
         if valor is not None and str(valor).strip() != "":
