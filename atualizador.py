@@ -1,7 +1,7 @@
 import os
 import requests
 from supabase import create_client, Client
-from datetime import datetime
+from datetime import datetime, timedelta
 
 SUPABASE_URL = os.environ.get("SUPABASE_URL")
 SUPABASE_KEY = os.environ.get("SUPABASE_KEY")
@@ -27,6 +27,14 @@ traducao_paises = {
     "New Zealand": "Nova Zelândia", "Venezuela": "Venezuela", "Paraguay": "Paraguai", 
     "Bolivia": "Bolívia", "Qatar": "Catar", "Panama": "Panamá", "Jamaica": "Jamaica"
 }
+
+emojis_bandeiras = {
+    "Brasil": "🇧🇷", "Alemanha": "🇩🇪", "Espanha": "🇪🇸", "França": "🇫🇷", "Inglaterra": "🏴%󠁢%󠁥%󠁮%󠁧%󠁿",
+    "Argentina": "🇦🇷", "Portugal": "🇵🇹", "Países Baixos": "🇳🇱", "Bélgica": "🇧🇪", "Itália": "🇮🇹",
+    "Uruguai": "🇺🇾", "Colômbia": "🇨🇴", "México": "🇲🇽", "Estados Unidos": "🇺🇸", "Canadá": "🇨🇦",
+    "Marrocos": "🇲🇦", "Senegal": "🇸🇳", "Japão": "🇯🇵", "Coreia do Sul": "🇰🇷", "Austrália": "🇦🇺"
+}
+
 traducao_status = { "Scheduled": "Agendado", "In Play": "Em Andamento", "Finished": "Encerrado" }
 
 def tratar_id(valor):
@@ -37,58 +45,110 @@ def tratar_gols(valor):
     try: return int(valor) if valor is not None and str(valor).strip() != "" else None
     except: return None
 
-# Função para traduzir "1st Group A" para "1º Grupo A"
-def formatar_placeholder(jogo, prefixo):
-    nome = jogo.get(f'{prefixo}_team_en') or jogo.get(f'{prefixo}_team_name')
-    if not nome and isinstance(jogo.get(f'{prefixo}_team'), dict):
-        nome = jogo[f'{prefixo}_team'].get('name_en') or jogo[f'{prefixo}_team'].get('name')
-    if not nome: return 'A Definir'
-    
-    t = str(nome)
-    t = t.replace("1st Group", "1º Grupo").replace("2nd Group", "2º Grupo").replace("3rd Group", "3º Grupo")
-    t = t.replace("Winner Match", "Venc. Jogo").replace("Runner-up Group", "2º Grupo")
-    return t
-
 def executar_atualizacao():
     print(f"[{datetime.now()}] Iniciando sincronização...")
     try:
         resp_equipas = requests.get(URL_EQUIPAS)
         resp_equipas.raise_for_status()
+        equipas_map = {}
+        
         for equipa in resp_equipas.json():
-            nome_en = equipa.get('name_en', '')
-            dados_equipa = {
-                "id": tratar_id(equipa.get('id')), 
-                "nome_original": nome_en, 
-                "nome_ptbr": traducao_paises.get(nome_en, nome_en),
-                "codigo_fifa": equipa.get('fifa_code', ''), 
-                "grupo": equipa.get('groups', ''),
-                "bandeira_url": equipa.get('flag', '')
-            }
-            if dados_equipa["id"] is not None:
+            id_eq = tratar_id(equipa.get('id'))
+            if id_eq:
+                nome_en = equipa.get('name_en', '')
+                nome_pt = traducao_paises.get(nome_en, nome_en)
+                equipas_map[id_eq] = {
+                    "nome": nome_pt,
+                    "bandeira": emojis_bandeiras.get(nome_pt, "")
+                }
+                dados_equipa = {
+                    "id": id_eq, "nome_original": nome_en, "nome_ptbr": nome_pt,
+                    "codigo_fifa": equipa.get('fifa_code', ''), "grupo": equipa.get('groups', ''),
+                    "bandeira_url": equipa.get('flag', '')
+                }
                 supabase.table("selecoes").upsert(dados_equipa).execute()
                 
         resp_jogos = requests.get(URL_JOGOS)
         resp_jogos.raise_for_status()
-        for jogo in resp_jogos.json():
-            status_original = jogo.get('status', 'Scheduled')
-            dados_jogo = {
-                "id": tratar_id(jogo.get('id')), 
-                "data_hora": jogo.get('date', jogo.get('local_date')),
-                "fase": jogo.get('matchday', 'Fase de Grupos'),
-                "time_casa_id": tratar_id(jogo.get('home_team_id')),
-                "time_visitante_id": tratar_id(jogo.get('away_team_id')),
-                "gols_casa": tratar_gols(jogo.get('home_score')),
-                "gols_visitante": tratar_gols(jogo.get('away_score')),
-                "status": traducao_status.get(status_original, status_original),
-                "desc_casa": formatar_placeholder(jogo, 'home'),
-                "desc_visitante": formatar_placeholder(jogo, 'away')
-            }
-            if dados_jogo["id"] is not None:
+        jogos_lista = resp_jogos.json()
+        
+        for jogo in jogos_lista:
+            id_jg = tratar_id(jogo.get('id'))
+            if id_jg:
+                status_original = jogo.get('status', 'Scheduled')
+                status_pt = traducao_status.get(status_original, status_original)
+                dados_jogo = {
+                    "id": id_jg, "data_hora": jogo.get('date', jogo.get('local_date')),
+                    "fase": jogo.get('matchday', 'Fase de Grupos'),
+                    "time_casa_id": tratar_id(jogo.get('home_team_id')),
+                    "time_visitante_id": tratar_id(jogo.get('away_team_id')),
+                    "gols_casa": tratar_gols(jogo.get('home_score')),
+                    "gols_visitante": tratar_gols(jogo.get('away_score')),
+                    "status": status_pt
+                }
                 supabase.table("jogos").upsert(dados_jogo).execute()
 
         supabase.table("status_sistema").upsert({"id": 1, "ultima_atualizacao": "now()"}).execute()
-        print("Sincronização concluída com sucesso no Supabase!")
+        print("Supabase atualizado!")
+
+        # GERAÇÃO DO CALENDÁRIO ESTÁTICO .ICS
+        print("Gerando ficheiro de calendário .ics...")
+        ics_linhas = [
+            "BEGIN:VCALENDAR",
+            "VERSION:2.0",
+            "PRODID:-//Copa2026//Calendario Estatico//PT",
+            "X-WR-CALNAME:Copa do Mundo 2026",
+            "X-WR-TIMEZONE:UTC",
+            "REFRESH-INTERVAL;VALUE=DURATION:PT15M",
+            "X-PUBLISHED-TTL:PT15M"
+        ]
+
+        for jogo in jogos_lista:
+            id_jg = tratar_id(jogo.get('id'))
+            if not id_jg: continue
+            
+            id_casa = tratar_id(jogo.get('home_team_id'))
+            id_fora = tratar_id(jogo.get('away_team_id'))
+            
+            casa = equipas_map.get(id_casa, {"nome": "A Definir", "bandeira": ""}) if id_casa else {"nome": "A Definir", "bandeira": ""}
+            fora = equipas_map.get(id_fora, {"nome": "A Definir", "bandeira": ""}) if id_fora else {"nome": "A Definir", "bandeira": ""}
+            
+            status_original = jogo.get('status', 'Scheduled')
+            status_pt = traducao_status.get(status_original, status_original)
+            g_casa = tratar_gols(jogo.get('home_score'))
+            g_fora = tratar_gols(jogo.get('away_score'))
+
+            if status_pt in ["Em Andamento", "Encerrado"] and g_casa is not None and g_fora is not None:
+                titulo = f"{casa['bandeira']} {casa['nome']} {g_casa} x {g_fora} {fora['nome']} {fora['bandeira']} ({status_pt})"
+            else:
+                titulo = f"{casa['bandeira']} {casa['nome']} x {fora['nome']} {fora['bandeira']}"
+
+            data_raw = jogo.get('date', jogo.get('local_date'))
+            try:
+                dt_limpa = data_raw.replace("Z", "").replace("T", " ").split(".")[0]
+                dt_obj = datetime.strptime(dt_limpa, "%Y-%m-%d %H:%M:%S")
+                dt_start = dt_obj.strftime("%Y%m%dT%H%M%SZ")
+                dt_end = (dt_obj + timedelta(hours=2)).strftime("%Y%m%dT%H%M%SZ")
+            except: continue
+
+            ics_linhas.extend([
+                "BEGIN:VEVENT",
+                f"UID:jogo_2026_{id_jg}",
+                f"DTSTART:{dt_start}",
+                f"DTEND:{dt_end}",
+                f"SUMMARY:{titulo}",
+                f"DESCRIPTION:Fase: {jogo.get('matchday', 'Fase de Grupos')}\\nEstado: {status_pt}",
+                "LOCATION:Estádio da Partida",
+                "END:VEVENT"
+            ])
+
+        ics_linhas.append("END:VCALENDAR")
+        
+        with open("calendario.ics", "w", encoding="utf-8") as f:
+            f.write("\r\n".join(ics_linhas))
+        print("Ficheiro calendario.ics gerado com sucesso!")
 
     except Exception as e: print(f"Erro durante a atualização: {e}")
 
 if __name__ == "__main__": executar_atualizacao()
+    
