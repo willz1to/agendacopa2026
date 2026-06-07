@@ -36,5 +36,4 @@ jobs:
           git config --local user.name "github-actions[bot]"
           git add calendario.ics
           git diff-index --quiet HEAD || git commit -m "🤖 Atualização automática do calendário [.ics]"
-          g
-          it push
+          git push
