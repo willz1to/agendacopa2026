@@ -1,0 +1,27 @@
+name: Atualizador da Copa
+
+on:
+  schedule:
+    - cron: '*/10 * * * *' # Roda automaticamente a cada 10 minutos
+  workflow_dispatch: # Cria um botão para você rodar manualmente quando quiser
+
+jobs:
+  atualizar-banco:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Baixar o código
+        uses: actions/checkout@v4
+
+      - name: Configurar Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: Instalar dependências
+        run: pip install -r requirements.txt
+
+      - name: Rodar o script
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+        run: python atualizador.py
